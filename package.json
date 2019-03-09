@@ -1,6 +1,6 @@
 {
   "name": "data-transactional-log",
-  "version": "0.1.0",
+  "version": "0.1.5",
   "description": "Safely and reliable serialize and write data to a file in transactions, and read them back again",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
@@ -20,7 +20,7 @@
   "author": "Pedro M. Silva <pemiolsi@hotmail.com>",
   "license": "ISC",
   "dependencies": {
-    "data-async-iterators": "^1.3.4",
+    "data-async-iterators": "^1.4.0",
     "data-semaphore": "^0.3.8",
     "mz": "^2.7.0"
   },

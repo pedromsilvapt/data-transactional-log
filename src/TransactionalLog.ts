@@ -1,4 +1,4 @@
-import { AsyncStream } from 'data-async-iterators';
+import { AsyncStream, AsyncIterableLike, forEach, dropErrors } from 'data-async-iterators';
 import { TransactionState } from './Core';
 import { StorageInterface, isLogEntryData, isLogEntryAbort, isLogEntryReset, isLogEntryCommit, LogEntryCommit, FileStorage } from './Storages';
 
@@ -114,6 +114,8 @@ export class TransactionalLog<T> implements TransactionalLogInterface<T> {
 
     protected controller : TransactionalLogControllerInterface<T>;
 
+    protected initLoad : Promise<void>;
+
     lastTransactionRead : Transaction<T> = null;
 
     lastTransactionIdRead : number = 0;
@@ -129,6 +131,19 @@ export class TransactionalLog<T> implements TransactionalLogInterface<T> {
             getStorage: () => this.storage,
             commit: () => this.commit()
         };
+
+        this.initLoad = AsyncStream.from( this.storage.read() ).dropErrors().map<[number, number]>( entry => {
+            if ( isLogEntryData( entry ) ) {
+                return [ entry[ 0 ], null ];
+            } else if ( isLogEntryAbort( entry ) ) {
+                return [ entry[ 0 ], null ];
+            } else if ( isLogEntryCommit( entry ) ) {
+                return [ entry[ 0 ], entry[ 2 ] ];
+            }
+        } ).reduce( ( a, b ) => [ Math.max( a[ 0 ], b[ 0 ] ), Math.max( a[ 1 ], b[ 1 ] ) ], [ 0, 0 ] ).then( res => {
+            this.transactionCounter = res[ 0 ];
+            this.commitCounter = res[ 1 ];
+        } );
     }
 
     reset () {
@@ -183,19 +198,21 @@ export class TransactionalLog<T> implements TransactionalLogInterface<T> {
     }
 
     protected async commit () : Promise<number> {
-        return this.commitCounter++;
+        return ++this.commitCounter;
     }
     
     async transaction () : Promise<Transaction<T>> {
         // TODO Read the biggest transaction id
-        return new Transaction<T>( this.transactionCounter++, this.controller );
+        await this.initLoad;
+
+        return new Transaction<T>( ++this.transactionCounter, this.controller );
     }
 
-    async writeTransaction ( blocks : T[] ) : Promise<void> {
+    async writeTransaction ( blocks : AsyncIterableLike<T> ) : Promise<void> {
         const transaction = await this.transaction();
 
         try {
-            await transaction.writeMany( blocks );
+            await forEach( blocks, block => transaction.write( block ) );
 
             await transaction.commit();
         } catch ( error ) {

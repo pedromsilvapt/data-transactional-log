@@ -315,9 +315,9 @@ export class SegmentedFileStorage<T> implements StorageInterface<T> {
     read ( afterCommit ?: number ) : AsyncIterable<LogEntry<T>> {
         let lastFile : FileStorage<T> = null;
 
-        const stream = AsyncStream.flatten( this.getSegments() );
+        const stream = AsyncStream.from( this.getSegments() );
 
-        return stream.sort().flatMap( async number => {
+        return stream.sort().map( async number => {
             if ( lastFile != null ) {
                 await lastFile.close();
             }
